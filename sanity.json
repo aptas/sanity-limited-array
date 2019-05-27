@@ -1,0 +1,14 @@
+{
+	"root": true,
+	"project": {
+		"name": "Cool Project"
+	},
+	"api": {},
+	"plugins": [],
+	"parts": [
+		{
+			"implements": "part:@sanity/form-builder/input-resolver",
+			"path": "./parts/inputResolver.js"
+		}
+	]
+}

@@ -1,0 +1,13 @@
+{
+	"name": "sanity-limited-array",
+	"version": "1.0.0",
+	"description": "",
+	"main": "package.json",
+	"author": "Daniel Skogly <daniel@apt.no>",
+	"license": "MIT",
+	"keywords": [
+		"sanity"
+	],
+	"dependencies": {},
+	"devDependencies": {}
+}
