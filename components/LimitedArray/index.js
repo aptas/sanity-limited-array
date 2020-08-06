@@ -1,17 +1,17 @@
 import React from 'react';
 import ArrayFunctions from 'part:@sanity/form-builder/input/array/functions';
 import { map } from 'rxjs/operators';
-import { isPlainObject } from 'lodash';
+import { isPlainObject, get } from 'lodash';
 import { resolveTypeName } from '@sanity/form-builder/lib/utils/resolveTypeName';
 import { FOCUS_TERMINATOR, startsWith } from '@sanity/util/paths';
 import UploadTargetFieldset from '@sanity/form-builder/lib/utils/UploadTargetFieldset';
 import {
-	PatchEvent,
 	insert,
+	PatchEvent,
 	set,
 	setIfMissing,
 	unset,
-} from 'part:@sanity/form-builder/patch-event';
+} from '@sanity/form-builder/lib/PatchEvent';
 import styles from '@sanity/form-builder/lib/inputs/ArrayInput/styles/ArrayInput.css';
 import resolveListComponents from '@sanity/form-builder/lib/inputs/ArrayInput/resolveListComponents';
 import RenderItemValue from '@sanity/form-builder/lib/inputs/ArrayInput/ItemValue';
@@ -19,13 +19,15 @@ import randomKey from '@sanity/form-builder/lib/inputs/ArrayInput/randomKey';
 import Button from 'part:@sanity/components/buttons/default';
 import Fieldset from 'part:@sanity/components/fieldsets/default';
 import Details from '@sanity/form-builder/lib/inputs/common/Details';
+import formBuilderConfig from 'config:@sanity/form-builder';
+
+const NO_MARKERS = [];
+const SUPPORT_DIRECT_UPLOADS = get(formBuilderConfig, 'images.directUploads');
 
 function createProtoValue(type) {
 	if (type.jsonType !== 'object') {
 		throw new Error(
-			`Invalid item type: "${
-				type.type
-			}". Default array input can only contain objects (for now)`
+			`Invalid item type: "${type.type}". Default array input can only contain objects (for now)`
 		);
 	}
 	const key = randomKey(12);
@@ -38,15 +40,14 @@ function createProtoValue(type) {
 }
 
 export default class ArrayInput extends React.Component {
+	_element;
 	uploadSubscriptions = {};
-
 	static defaultProps = {
 		focusPath: [],
 	};
 	state = {
 		isMoving: false,
 	};
-
 	insert = (itemValue, position, atIndex) => {
 		const { onChange } = this.props;
 		onChange(
@@ -56,26 +57,21 @@ export default class ArrayInput extends React.Component {
 			)
 		);
 	};
-
-	handlePrepend = value => {
+	handlePrepend = (value) => {
 		this.insert(value, 'before', 0);
 		this.handleFocusItem(value);
 	};
-
-	handleAppend = value => {
+	handleAppend = (value) => {
 		this.insert(value, 'after', -1);
 		this.handleFocusItem(value);
 	};
-
-	handleRemoveItem = item => {
+	handleRemoveItem = (item) => {
 		this.removeItem(item);
 	};
-
 	handleFocus = () => {
 		this.props.onFocus([FOCUS_TERMINATOR]);
 	};
-
-	handleFocusItem = item => {
+	handleFocusItem = (item) => {
 		this.props.onFocus([{ _key: item._key }, FOCUS_TERMINATOR]);
 	};
 
@@ -86,11 +82,9 @@ export default class ArrayInput extends React.Component {
 				unset(item._key ? [{ _key: item._key }] : [value.indexOf(item)])
 			)
 		);
-
 		if (item._key in this.uploadSubscriptions) {
 			this.uploadSubscriptions[item._key].unsubscribe();
 		}
-
 		const idx = value.indexOf(item);
 		const nextItem = value[idx + 1] || value[idx - 1];
 		onFocus([nextItem ? { _key: nextItem._key } : FOCUS_TERMINATOR]);
@@ -98,7 +92,6 @@ export default class ArrayInput extends React.Component {
 
 	handleItemChange = (event, item) => {
 		const { onChange, value } = this.props;
-
 		const memberType = this.getMemberTypeOfItem(item);
 		if (!memberType) {
 			// eslint-disable-next-line no-console
@@ -108,7 +101,6 @@ export default class ArrayInput extends React.Component {
 		if (memberType.readOnly) {
 			return;
 		}
-
 		const key = item._key || randomKey(12);
 		onChange(
 			event
@@ -118,17 +110,14 @@ export default class ArrayInput extends React.Component {
 				)
 		);
 	};
-
 	handleSortStart = () => {
 		this.setState({ isMoving: true });
 	};
-
-	handleSortEnd = event => {
+	handleSortEnd = (event) => {
 		this.setState({ isMoving: false });
 		const { value, onChange } = this.props;
 		const item = value[event.oldIndex];
 		const refItem = value[event.newIndex];
-
 		// console.log('from %d => %d', event.oldIndex, event.newIndex, event)
 		if (!item._key || !refItem._key) {
 			// eslint-disable-next-line no-console
@@ -137,11 +126,9 @@ export default class ArrayInput extends React.Component {
 			);
 			return;
 		}
-
 		if (event.oldIndex === event.newIndex || item._key === refItem._key) {
 			return;
 		}
-
 		onChange(
 			PatchEvent.from(
 				unset([{ _key: item._key }]),
@@ -154,16 +141,10 @@ export default class ArrayInput extends React.Component {
 		);
 	};
 
-	getExpandedItem() {
-		const { focusPath, value } = this.props;
-		const [head] = focusPath || [];
-		return head && value.find(item => item._key === head._key);
-	}
-
 	getMemberTypeOfItem(item) {
 		const { type } = this.props;
 		const itemTypeName = resolveTypeName(item);
-		return type.of.find(memberType => memberType.name === itemTypeName);
+		return type.of.find((memberType) => memberType.name === itemTypeName);
 	}
 
 	renderList = () => {
@@ -180,13 +161,10 @@ export default class ArrayInput extends React.Component {
 		} = this.props;
 		const { isMoving } = this.state;
 		const options = type.options || {};
-		const hasMissingKeys = value.some(item => !item._key);
+		const hasMissingKeys = value.some((item) => !item._key);
 		const isSortable = options.sortable !== false && !hasMissingKeys;
-
 		const isGrid = options.layout === 'grid';
-
 		const { List, Item } = resolveListComponents(isSortable, isGrid);
-
 		const listProps = isSortable
 			? {
 					movingItemClass: styles.movingItem,
@@ -205,9 +183,10 @@ export default class ArrayInput extends React.Component {
 				{...listProps}
 			>
 				{value.map((item, index) => {
-					const isChildMarker = marker =>
+					const isChildMarker = (marker) =>
 						startsWith([index], marker.path) ||
 						startsWith([{ _key: item && item._key }], marker.path);
+					const childMarkers = markers.filter(isChildMarker);
 
 					const itemProps = isSortable ? { index } : {};
 					return (
@@ -222,14 +201,18 @@ export default class ArrayInput extends React.Component {
 								type={type}
 								value={item}
 								level={level}
-								markers={markers.filter(isChildMarker)}
+								markers={
+									childMarkers.length === 0
+										? NO_MARKERS
+										: childMarkers
+								}
 								onRemove={this.handleRemoveItem}
 								onChange={this.handleItemChange}
 								focusPath={focusPath}
 								filterField={filterField}
 								onFocus={onFocus}
-								readOnly={readOnly || hasMissingKeys}
 								onBlur={onBlur}
+								readOnly={readOnly || hasMissingKeys}
 							/>
 						</Item>
 					);
@@ -244,17 +227,16 @@ export default class ArrayInput extends React.Component {
 		}
 	}
 
-	setElement = el => {
+	setElement = (el) => {
 		this._element = el;
 	};
-
-	getUploadOptions = file => {
+	getUploadOptions = (file) => {
 		const { type, resolveUploader } = this.props;
 		if (!resolveUploader) {
 			return [];
 		}
 		return type.of
-			.map(memberType => {
+			.map((memberType) => {
 				const uploader = resolveUploader(memberType, file);
 				return (
 					uploader && {
@@ -265,7 +247,6 @@ export default class ArrayInput extends React.Component {
 			})
 			.filter(Boolean);
 	};
-
 	handleFixMissingKeys = () => {
 		const { onChange, value } = this.props;
 		const patches = value.map((val, i) =>
@@ -273,7 +254,6 @@ export default class ArrayInput extends React.Component {
 		);
 		onChange(PatchEvent.from(...patches));
 	};
-
 	handleRemoveNonObjectValues = () => {
 		const { onChange, value } = this.props;
 		const nonObjects = value
@@ -282,25 +262,21 @@ export default class ArrayInput extends React.Component {
 				[]
 			)
 			.reverse();
-		const patches = nonObjects.map(index => unset([index]));
+		const patches = nonObjects.map((index) => unset([index]));
 		onChange(PatchEvent.from(...patches));
 	};
-
 	handleUpload = ({ file, type, uploader }) => {
 		const { onChange } = this.props;
 		const item = createProtoValue(type);
-
 		const key = item._key;
 		this.insert(item, 'after', -1);
-
 		const events$ = uploader.upload(file, type).pipe(
-			map(uploadEvent =>
+			map((uploadEvent) =>
 				PatchEvent.from(uploadEvent.patches).prefixAll({
 					_key: key,
 				})
 			)
 		);
-
 		this.uploadSubscriptions = {
 			...this.uploadSubscriptions,
 			[key]: events$.subscribe(onChange),
@@ -309,9 +285,8 @@ export default class ArrayInput extends React.Component {
 
 	render() {
 		const { type, level, markers, readOnly, onChange, value } = this.props;
-
 		const hasNonObjectValues = (value || []).some(
-			item => !isPlainObject(item)
+			(item) => !isPlainObject(item)
 		);
 		if (hasNonObjectValues) {
 			return (
@@ -342,8 +317,7 @@ export default class ArrayInput extends React.Component {
 				</Fieldset>
 			);
 		}
-
-		const hasMissingKeys = (value || []).some(item => !item._key);
+		const hasMissingKeys = (value || []).some((item) => !item._key);
 		if (hasMissingKeys) {
 			return (
 				<Fieldset
@@ -379,6 +353,15 @@ export default class ArrayInput extends React.Component {
 				</Fieldset>
 			);
 		}
+		const FieldSetComponent = SUPPORT_DIRECT_UPLOADS
+			? UploadTargetFieldset
+			: Fieldset;
+		const uploadProps = SUPPORT_DIRECT_UPLOADS
+			? {
+					getUploadOptions: this.getUploadOptions,
+					onUpload: this.handleUpload,
+			  }
+			: {};
 
 		/* START things that are added by us */
 
@@ -398,7 +381,7 @@ export default class ArrayInput extends React.Component {
 				typeCounts[_type]++;
 			});
 
-			const filteredOf = type.of.filter(currentType => {
+			const filteredOf = type.of.filter((currentType) => {
 				const { name } = currentType;
 
 				const count = typeCounts[name] || 0;
@@ -429,33 +412,34 @@ export default class ArrayInput extends React.Component {
 		/* END things that are added by us (+ conditional show in return) */
 
 		return (
-			<UploadTargetFieldset
+			<FieldSetComponent
 				markers={markers}
 				tabIndex={0}
 				legend={type.title}
 				description={type.description}
 				level={level}
 				className={styles.root}
-				onUpload={this.handleUpload}
 				onFocus={this.handleFocus}
 				type={type}
-				getUploadOptions={this.getUploadOptions}
 				ref={this.setElement}
+				{...uploadProps}
 			>
-				{value && value.length > 0 && this.renderList()}
-				{showArrayFunctions && (
-					<ArrayFunctions
-						type={arrayFunctionsType}
-						value={value}
-						readOnly={readOnly}
-						onAppendItem={this.handleAppend}
-						onPrependItem={this.handlePrepend}
-						onFocusItem={this.handleFocusItem}
-						onCreateValue={createProtoValue}
-						onChange={onChange}
-					/>
-				)}
-			</UploadTargetFieldset>
+				<div>
+					{value && value.length > 0 && this.renderList()}
+					{showArrayFunctions && (
+						<ArrayFunctions
+							type={type}
+							value={value}
+							readOnly={readOnly}
+							onAppendItem={this.handleAppend}
+							onPrependItem={this.handlePrepend}
+							onFocusItem={this.handleFocusItem}
+							onCreateValue={createProtoValue}
+							onChange={onChange}
+						/>
+					)}
+				</div>
+			</FieldSetComponent>
 		);
 	}
 }
